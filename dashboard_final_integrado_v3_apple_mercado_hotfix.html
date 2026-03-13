@@ -1,0 +1,304 @@
+
+<!doctype html>
+<html lang="pt">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Dashboard Operacional — Tema Apple Minimal (v3.1 HOTFIX)</title>
+  <!-- Dependências -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <style>
+    :root {
+      --bg: #f5f7fb; --header:#ffffffdd; --card:#ffffff; --text:#0b1220; --muted:#6b7280; --border:#e5e7eb;
+      --blue:#007aff; --green:#34c759; --orange:#ff9f0a; --red:#ff3b30; --radius:14px;
+      --shadow: 0 1px 2px rgba(0,0,0,.05), 0 8px 24px rgba(0,0,0,.08);
+      --shadow-hover: 0 4px 12px rgba(0,0,0,.12), 0 16px 40px rgba(0,0,0,.12);
+    }
+    *{box-sizing:border-box}
+    body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','Inter',system-ui,Segoe UI,Roboto,Arial,sans-serif}
+    header{position:sticky;top:0;z-index:10;background:var(--header);backdrop-filter:saturate(180%) blur(20px);border-bottom:1px solid var(--border)}
+    .header-wrap{max-width:1400px;margin:0 auto;padding:14px 20px;display:flex;gap:16px;align-items:center;justify-content:space-between}
+    h1{font-size:18px;margin:0;font-weight:600}
+    .tabs{display:flex;gap:8px;flex-wrap:wrap}
+    .tab{padding:8px 12px;border-radius:10px;border:1px solid var(--border);background:#fff;color:#111827;cursor:pointer;transition:.2s;font-weight:500}
+    .tab:hover{border-color:var(--blue);box-shadow:0 4px 16px rgba(0,0,0,.06)}
+    .tab.active{color:#fff;background:var(--blue);border-color:var(--blue)}
+
+    .toolbar{display:flex;align-items:center;gap:10px}
+    .btn{appearance:none;border:1px solid var(--border);background:#fff;color:var(--text);padding:8px 14px;border-radius:10px;cursor:pointer;font-weight:500;transition:.2s}
+    .btn:hover{transform:translateY(-1px);box-shadow:var(--shadow)}
+    input[type=file]{display:none}
+    .status{font-size:13px;color:var(--muted)}
+    .status.ok{color:var(--green)} .status.err{color:var(--red)}
+
+    .container{max-width:1400px;margin:0 auto;padding:20px}
+    .grid{display:grid;grid-template-columns:repeat(12,1fr);gap:16px}
+    .col-3{grid-column:span 3}.col-6{grid-column:span 6}.col-12{grid-column:span 12}
+    @media(max-width:1024px){.col-6,.col-3{grid-column:span 12}}
+
+    .card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);padding:16px}
+    .label{color:var(--muted);font-size:12px;margin-bottom:8px}
+    .kpi{display:flex;flex-direction:column;gap:6px}
+    .kpi .value{font-size:24px;font-weight:600}
+
+    select{background:#fff;border:1px solid var(--border);border-radius:10px;padding:8px 12px;color:var(--text)}
+    table{width:100%;border-collapse:collapse}
+    th,td{padding:10px 8px;border-bottom:1px solid var(--border)}
+    th{text-align:left;color:var(--muted);font-weight:600;font-size:13px}
+    .hint{font-size:12px;color:var(--muted)}
+  </style>
+</head>
+<body>
+  <header>
+    <div class="header-wrap">
+      <h1>Dashboard Operacional</h1>
+      <div class="toolbar">
+        <label for="fileUpload" class="btn">📁 Carregar Excel</label>
+        <input type="file" id="fileUpload" accept=".xlsx,.xls,.csv">
+        <span id="status" class="status">Pronto</span>
+      </div>
+      <div class="tabs">
+        <div class="tab active" data-tab="vendas">Vendas & GC's</div>
+        <div class="tab" data-tab="controlos">Controlos Operacionais</div>
+        <div class="tab" data-tab="delivery">Delivery</div>
+        <div class="tab" data-tab="tempos">Tempos</div>
+        <div class="tab" data-tab="prod">Produtividade</div>
+      </div>
+    </div>
+  </header>
+
+  <div class="container">
+    <section id="tab-vendas">
+      <div style="display:flex;gap:12px;align-items:center;margin-bottom:12px">
+        <label class="label" style="margin:0">Canal:</label>
+        <select id="selCanal"><option>Restaurante</option><option>Delivery</option><option>Drive</option><option>IN STORE</option></select>
+        <span class="hint">Dica: arrasta para pan e usa scroll para zoom nos gráficos.</span>
+      </div>
+      <div class="grid">
+        <div class="card col-3"><div class="kpi"><div class="label">Vendas Totais</div><div id="kpiVend" class="value">–</div></div></div>
+        <div class="card col-3"><div class="kpi"><div class="label">GC's Totais</div><div id="kpiGcs" class="value">–</div></div></div>
+        <div class="card col-3"><div class="kpi"><div class="label">Pedidos/Dia (média)</div><div id="kpiPed" class="value">–</div></div></div>
+        <div class="card col-3"><div class="kpi"><div class="label">Carros/Dia (média)</div><div id="kpiCar" class="value">–</div></div></div>
+        <div class="card col-6"><div class="label">Vendas</div><canvas id="chVend" height="120"></canvas></div>
+        <div class="card col-6"><div class="label">GC's</div><canvas id="chGcs" height="120"></canvas></div>
+        <div class="card col-12"><div class="label">Tabela (Resumo + Mercado)</div><div id="tblVendas"></div></div>
+      </div>
+    </section>
+
+    <section id="tab-controlos" style="display:none">
+      <div style="display:flex;gap:12px;align-items:center;margin-bottom:12px">
+        <label class="label" style="margin:0">Indicador:</label>
+        <select id="selIndic"></select>
+      </div>
+      <div class="grid">
+        <div class="card col-6"><div class="label">Real vs Mercado (%)</div><canvas id="chCtrl" height="130"></canvas></div>
+        <div class="card col-6"><div class="label">Diferença (p.p.)</div><canvas id="chCtrlDif" height="130"></canvas></div>
+        <div class="card col-12"><div class="label">Tabela</div><div id="tblCtrl"></div></div>
+      </div>
+    </section>
+
+    <section id="tab-delivery" style="display:none">
+      <div class="grid">
+        <div class="card col-6"><div class="label">CSAT</div><canvas id="chCSAT" height="120"></canvas></div>
+        <div class="card col-6"><div class="label">Tempos</div><canvas id="chTempo" height="120"></canvas></div>
+        <div class="card col-6"><div class="label">Inexatidão</div><canvas id="chInex" height="120"></canvas></div>
+        <div class="card col-6"><div class="label">Inquéritos</div><canvas id="chInq" height="120"></canvas></div>
+      </div>
+    </section>
+
+    <section id="tab-tempos" style="display:none">
+      <div class="grid">
+        <div class="card col-6"><div class="label">Balcão</div><canvas id="chBal" height="120"></canvas></div>
+        <div class="card col-6"><div class="label">Drive</div><canvas id="chDrv" height="120"></canvas></div>
+      </div>
+    </section>
+
+    <section id="tab-prod" style="display:none">
+      <div class="grid">
+        <div class="card col-12"><div class="label">Produtividade</div><canvas id="chProd" height="130"></canvas></div>
+      </div>
+    </section>
+  </div>
+
+  <script id="rawData" type="application/json">{"months":["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"],"vendas":{},"controlos":{},"delivery":{},"tempos":{},"produtividade":{}}</script>
+
+  <script>
+    // ==== Utilitários ====
+    let raw = JSON.parse(document.getElementById('rawData').textContent);
+    const months = raw.months;
+    function setStatus(msg, cls){ const el=document.getElementById('status'); el.textContent=msg; el.className='status '+(cls||''); }
+    function fmt(n){ if(n==null || Number.isNaN(n)) return '–'; const abs=Math.abs(n); const opts = abs>=1e6? {notation:'compact',compactDisplay:'short'} : {maximumFractionDigits:2}; return new Intl.NumberFormat('pt-PT', opts).format(n); }
+    function sum(arr){ const a=(arr||[]).filter(v=>typeof v==='number'&&!Number.isNaN(v)); return a.reduce((x,y)=>x+y,0); }
+    function mean(arr){ const a=(arr||[]).filter(v=>typeof v==='number'&&!Number.isNaN(v)); return a.length? a.reduce((x,y)=>x+y,0)/a.length : NaN; }
+
+    // Tabs
+    const tabs = document.querySelectorAll('.tab');
+    tabs.forEach(t=>t.addEventListener('click',()=>{ tabs.forEach(x=>x.classList.remove('active')); t.classList.add('active'); const target=t.dataset.tab; ['vendas','controlos','delivery','tempos','prod'].forEach(id=>{ document.getElementById('tab-'+id).style.display=(id===target)?'block':'none'; }); }));
+
+    // Chart.js defaults
+    if (window.Chart){
+      Chart.defaults.color = '#111827';
+      Chart.defaults.font.family = "-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Inter', system-ui, Segoe UI, Roboto, Arial, sans-serif";
+      Chart.defaults.plugins.tooltip.backgroundColor = 'rgba(17,24,39,.9)';
+      Chart.defaults.plugins.tooltip.titleColor = '#fff';
+      Chart.defaults.plugins.tooltip.bodyColor = '#111827';
+    } else {
+      alert('Não consegui carregar o Chart.js (precisas de internet).');
+    }
+
+    // === Vendas ===
+    const selCanal = document.getElementById('selCanal');
+    let chVend, chGcs;
+    function animateValue(el, end){ const start=0,dur=700,t0=performance.now(); function step(t){ const k=Math.min(1,(t-t0)/dur); el.textContent=fmt(start+(end-start)*k); if(k<1) requestAnimationFrame(step);} requestAnimationFrame(step);} 
+    function pctChange(curr,prev){ if(typeof curr!=="number"||typeof prev!=="number"||prev===0) return null; return (curr-prev)/prev; }
+
+    function mercadoSeriesAvg(kind){
+      const inds = Object.keys(raw.controlos||{}); const acc=new Array(months.length).fill(0); const cnt=new Array(months.length).fill(0);
+      inds.forEach(ind=>{ const arr=raw.controlos?.[ind]?.[kind]||[]; arr.forEach((v,i)=>{ if(typeof v==='number'&&!Number.isNaN(v)){ acc[i]+=v; cnt[i]++; } }); });
+      return acc.map((s,i)=> cnt[i]>0? s/cnt[i] : null);
+    }
+
+    function refreshVendas(){
+      const sec = selCanal.value;
+      const vendas = raw.vendas?.[sec]?.['Vendas']||[];
+      const gcs    = raw.vendas?.[sec]?.['Gc´s']||[];
+      const ped    = raw.vendas?.[sec]?.['Pedidos Dia']||[];
+      const car    = raw.vendas?.[sec]?.['Carros Dia']||[];
+
+      animateValue(document.getElementById('kpiVend'), sum(vendas));
+      animateValue(document.getElementById('kpiGcs'), sum(gcs));
+      animateValue(document.getElementById('kpiPed'), mean(ped));
+      animateValue(document.getElementById('kpiCar'), mean(car));
+
+      const valid = months.map((m,i)=>i).filter(i=>[vendas[i],gcs[i]].some(v=>typeof v==='number'));
+      const labels   = valid.map(i=>months[i]);
+      const vendData = valid.map(i=>vendas[i]);
+      const gcsData  = valid.map(i=>gcs[i]);
+
+      if (window.Chart){
+        if(chVend) chVend.destroy();
+        chVend=new Chart(document.getElementById('chVend').getContext('2d'),{type:'bar',data:{labels,datasets:[{label:'Vendas',data:vendData,backgroundColor:'rgba(0,122,255,.2)',borderColor:'#007aff',borderWidth:1.5}]},options:{responsive:true,animation:{duration:600}}});
+        if(chGcs) chGcs.destroy();
+        chGcs=new Chart(document.getElementById('chGcs').getContext('2d'),{type:'line',data:{labels,datasets:[{label:"GC's",data:gcsData,borderColor:'#34c759',backgroundColor:'rgba(52,199,89,.15)',tension:.25,fill:true,pointRadius:3}]},options:{responsive:true,animation:{duration:600}}});
+      }
+
+      const vendasYTD=sum(vendas), gcsYTD=sum(gcs), ticket=(gcsYTD>0? vendasYTD/gcsYTD:NaN), pedMed=mean(ped), carMed=mean(car);
+      const mercadoAvg=mercadoSeriesAvg('Mercado'), diffAvg=mercadoSeriesAvg('Diferença'); const mercadoYTD=mean(mercadoAvg), diffYTD=mean(diffAvg);
+
+      let html = `
+      <div style="overflow:auto">
+      <table>
+        <thead>
+          <tr>
+            <th>Mês</th>
+            <th style="text-align:right">Vendas</th>
+            <th style="text-align:right">Δ Vendas M/M‑1</th>
+            <th style="text-align:right">GC's</th>
+            <th style="text-align:right">Δ GC's M/M‑1</th>
+            <th style="text-align:right">Pedidos/Dia</th>
+            <th style="text-align:right">Carros/Dia</th>
+            <th style="text-align:right">Mercado (média %)</th>
+            <th style="text-align:right">Dif. (p.p.)</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr style="background:#f8fafc">
+            <td><strong>— Resumo —</strong></td>
+            <td style="text-align:right"><strong>${fmt(vendasYTD)}</strong></td>
+            <td style="text-align:right;color:#6b7280"><em>Ticket Médio:</em></td>
+            <td style="text-align:right"><strong>${isNaN(ticket)?'–':fmt(ticket)}</strong></td>
+            <td style="text-align:right;color:#6b7280"><em>Médias:</em></td>
+            <td style="text-align:right"><strong>${fmt(pedMed)}</strong></td>
+            <td style="text-align:right"><strong>${fmt(carMed)}</strong></td>
+            <td style="text-align:right"><strong>${(mercadoYTD==null||Number.isNaN(mercadoYTD))?'–':(mercadoYTD*100).toFixed(1)+'%'}</strong></td>
+            <td style="text-align:right"><strong>${(diffYTD==null||Number.isNaN(diffYTD))?'–':diffYTD.toFixed(2)}</strong></td>
+          </tr>`;
+
+      let lastV=null,lastG=null;
+      months.forEach((m,i)=>{
+        const v=vendas[i], g=gcs[i], p=ped[i], c=car[i];
+        const any=[v,g,p,c, mercadoAvg[i], diffAvg[i]].some(x=>typeof x==='number'&&!Number.isNaN(x));
+        if(!any) return;
+        const dv=pctChange(v,lastV), dg=pctChange(g,lastG);
+        const dvStr=(dv==null?'–':`${(dv*100).toFixed(1)}% ${dv>=0?'↑':'↓'}`);
+        const dgStr=(dg==null?'–':`${(dg*100).toFixed(1)}% ${dg>=0?'↑':'↓'}`);
+        const dvColor=(dv==null?'#111827':(dv>=0?'#15803d':'#b91c1c'));
+        const dgColor=(dg==null?'#111827':(dg>=0?'#15803d':'#b91c1c'));
+        const merc=mercadoAvg[i], dif=diffAvg[i];
+        html += `
+          <tr>
+            <td>${m}</td>
+            <td style="text-align:right">${fmt(v)}</td>
+            <td style="text-align:right;color:${dvColor}">${dvStr}</td>
+            <td style="text-align:right">${fmt(g)}</td>
+            <td style="text-align:right;color:${dgColor}">${dgStr}</td>
+            <td style="text-align:right">${fmt(p)}</td>
+            <td style="text-align:right">${fmt(c)}</td>
+            <td style="text-align:right">${(typeof merc==='number'&&!Number.isNaN(merc))?(merc*100).toFixed(1)+'%':'–'}</td>
+            <td style="text-align:right">${(typeof dif==='number'&&!Number.isNaN(dif))?dif.toFixed(2):'–'}</td>
+          </tr>`;
+        if(typeof v==='number') lastV=v; if(typeof g==='number') lastG=g;
+      });
+      html += '</tbody></table></div>';
+      document.getElementById('tblVendas').innerHTML = html;
+    }
+    selCanal.addEventListener('change', refreshVendas);
+
+    // === Controlos ===
+    const selIndic=document.getElementById('selIndic'); let chCtrl,chCtrlDif;
+    function initControlos(){ const inds=Object.keys(raw.controlos||{}); selIndic.innerHTML=inds.map(i=>`<option>${i}</option>`).join(''); }
+    function refreshControlos(){ if(!selIndic.value && Object.keys(raw.controlos||{}).length){ selIndic.value=Object.keys(raw.controlos)[0]; }
+      const ind=selIndic.value; const real=raw.controlos?.[ind]?.['Real']||[], merc=raw.controlos?.[ind]?.['Mercado']||[], dif=raw.controlos?.[ind]?.['Diferença']||[];
+      const valid=months.map((m,i)=>i).filter(i=>[real[i],merc[i]].some(v=>typeof v==='number')); const labels=valid.map(i=>months[i]);
+      if (window.Chart){
+        if(chCtrl) chCtrl.destroy(); chCtrl=new Chart(document.getElementById('chCtrl').getContext('2d'),{type:'line',data:{labels,datasets:[{label:'Real',data:valid.map(i=>real[i]),borderColor:'#007aff',tension:.25},{label:'Mercado',data:valid.map(i=>merc[i]),borderColor:'#ff9f0a',tension:.25}]}});
+        if(chCtrlDif) chCtrlDif.destroy(); chCtrlDif=new Chart(document.getElementById('chCtrlDif').getContext('2d'),{type:'bar',data:{labels,datasets:[{label:'Diferença',data:valid.map(i=>dif[i]),backgroundColor:'rgba(255,59,48,.18)',borderColor:'#ff3b30',borderWidth:1.2}]}});
+      }
+      let html='<div style="overflow:auto"><table><thead><tr><th>Mês</th><th style="text-align:right">Real (%)</th><th style="text-align:right">Mercado (%)</th><th style="text-align:right">Diferença</th></tr></thead><tbody>';
+      months.forEach((m,i)=>{ const any=[real[i],merc[i],dif[i]].some(v=>typeof v==='number'); if(!any) return; html+=`<tr><td>${m}</td><td style=\"text-align:right\">${(typeof real[i]==='number'&&!Number.isNaN(real[i]))?(real[i]*100).toFixed(1)+'%':'–'}</td><td style=\"text-align:right\">${(typeof merc[i]==='number'&&!Number.isNaN(merc[i]))?(merc[i]*100).toFixed(1)+'%':'–'}</td><td style=\"text-align:right\">${(typeof dif[i]==='number'&&!Number.isNaN(dif[i]))?dif[i].toFixed(2):'–'}</td></tr>`; });
+      html+='</tbody></table></div>'; document.getElementById('tblCtrl').innerHTML=html;
+    }
+    selIndic.addEventListener('change', refreshControlos);
+
+    // Delivery
+    let chCSAT,chTempo,chInex,chInq;
+    function refreshDelivery(){ const csat=raw.delivery?.['CSAT']||[], tRest=raw.delivery?.['Tempo Rest.']||[], tTot=raw.delivery?.['Tempo Total']||[], inex=raw.delivery?.['Inexatidão']||[], inq=raw.delivery?.['Inquéritos']||[]; const valid=months.map((m,i)=>i).filter(i=>[csat[i],tRest[i],tTot[i],inex[i],inq[i]].some(v=>typeof v==='number')); const labels=valid.map(i=>months[i]); if(window.Chart){ if(chCSAT) chCSAT.destroy(); chCSAT=new Chart(document.getElementById('chCSAT').getContext('2d'),{type:'line',data:{labels,datasets:[{label:'CSAT',data:valid.map(i=>csat[i]),borderColor:'#34c759',tension:.2}]}}); if(chTempo) chTempo.destroy(); chTempo=new Chart(document.getElementById('chTempo').getContext('2d'),{type:'bar',data:{labels,datasets:[{label:'Tempo Rest.',data:valid.map(i=>tRest[i]),backgroundColor:'rgba(0,122,255,.22)',borderColor:'#007aff'},{label:'Tempo Total',data:valid.map(i=>tTot[i]),backgroundColor:'rgba(255,159,10,.22)',borderColor:'#ff9f0a'}]}}); if(chInex) chInex.destroy(); chInex=new Chart(document.getElementById('chInex').getContext('2d'),{type:'bar',data:{labels,datasets:[{label:'Inexatidão',data:valid.map(i=>inex[i]),backgroundColor:'rgba(255,59,48,.18)',borderColor:'#ff3b30'}]}}); if(chInq) chInq.destroy(); chInq=new Chart(document.getElementById('chInq').getContext('2d'),{type:'line',data:{labels,datasets:[{label:'Inquéritos',data:valid.map(i=>inq[i]),borderColor:'#6b7280',tension:.2}]}}); }
+    }
+
+    // Tempos
+    let chBal,chDrv;
+    function refreshTempos(){ const bd=raw.tempos?.['Balcão - Dia']||[], br=raw.tempos?.['Balcão - Rush']||[], dd=raw.tempos?.['Drive - Dia']||[], dr=raw.tempos?.['Drive - Rush']||[]; const valid=months.map((m,i)=>i).filter(i=>[bd[i],br[i],dd[i],dr[i]].some(v=>typeof v==='number')); const labels=valid.map(i=>months[i]); if(window.Chart){ if(chBal) chBal.destroy(); chBal=new Chart(document.getElementById('chBal').getContext('2d'),{type:'bar',data:{labels,datasets:[{label:'Balcão - Dia',data:valid.map(i=>bd[i]),backgroundColor:'rgba(0,122,255,.22)',borderColor:'#007aff'},{label:'Balcão - Rush',data:valid.map(i=>br[i]),backgroundColor:'rgba(52,199,89,.22)',borderColor:'#34c759'}]}}); if(chDrv) chDrv.destroy(); chDrv=new Chart(document.getElementById('chDrv').getContext('2d'),{type:'bar',data:{labels,datasets:[{label:'Drive - Dia',data:valid.map(i=>dd[i]),backgroundColor:'rgba(255,159,10,.22)',borderColor:'#ff9f0a'},{label:'Drive - Rush',data:valid.map(i=>dr[i]),backgroundColor:'rgba(255,59,48,.18)',borderColor:'#ff3b30'}]}}); }
+    }
+
+    // Produtividade
+    let chProd; function refreshProd(){ const dia=raw.produtividade?.['Dia']||[], rush=raw.produtividade?.['Rush']||[]; const valid=months.map((m,i)=>i).filter(i=>[dia[i],rush[i]].some(v=>typeof v==='number')); const labels=valid.map(i=>months[i]); if(window.Chart){ if(chProd) chProd.destroy(); chProd=new Chart(document.getElementById('chProd').getContext('2d'),{type:'line',data:{labels,datasets:[{label:'Dia',data:valid.map(i=>dia[i]),borderColor:'#007aff',tension:.25},{label:'Rush',data:valid.map(i=>rush[i]),borderColor:'#34c759',tension:.25}]}}); } }
+
+    // Upload handler
+    document.getElementById('fileUpload').addEventListener('change',(e)=>{ const file=e.target.files[0]; if(!file) return; if(typeof XLSX==='undefined'){ setStatus('Erro: XLSX não carregou.','err'); return;} const ext=(file.name.split('.').pop()||'').toLowerCase(); const reader=new FileReader(); setStatus('A ler ficheiro…'); reader.onload=(ev)=>{ try{ let wb; if(ext==='csv'){ wb=XLSX.read(ev.target.result,{type:'string'});} else { wb=XLSX.read(ev.target.result,{type:'array'});} const tables={}; wb.SheetNames.forEach(n=> tables[n]=XLSX.utils.sheet_to_json(wb.Sheets[n],{header:1})); processExcelAndRefreshDashboard(tables); setStatus('Atualizado ✔','ok'); }catch(err){ console.error(err); setStatus('Erro a processar.','err'); alert('Não consegui ler o ficheiro.'); } }; if(ext==='csv') reader.readAsText(file,'utf-8'); else reader.readAsArrayBuffer(file); });
+
+    // Parser
+    function processExcelAndRefreshDashboard(tables){
+      const months=["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
+      function findSection(table,name){ for(let r=0;r<table.length;r++){ if(((table[r]||[])[0]||'').toString().trim()===name) return r; } return -1; }
+      function findMonthHeader(table,start){ for(let r=start;r<table.length;r++){ const row=(table[r]||[]).map(x=>(x||'').toString().trim()); if(row.includes('Janeiro')){ const map={}; row.forEach((c,i)=>{ if(months.includes(c)) map[c]=i; }); return {row:r,map}; } } return null; }
+      function extractMetric(table,row,map){ const out=[]; months.forEach(m=>{ const c=map[m]; const v=c==null? null : parseFloat((table[row]||[])[c]); out.push(Number.isNaN(v)? null : v); }); return out; }
+      const sections=["Restaurante","Delivery","Drive","IN STORE"], metrics=["Vendas","Gc´s","Pedidos Dia","Carros Dia"], ctrlInd=["PAC (Sem Serviços Externos)","Alimentos","Refeições","Perdas","Papel","OPS","MDO"], deliv=["CSAT","Tempo Rest.","Tempo Total","Inexatidão","Inquéritos"], tempos=["Balcão - Dia","Balcão - Rush","Drive - Dia","Drive - Rush"], prod=["Dia","Rush"];
+      const newRaw={months, vendas:{}, controlos:{}, delivery:{}, tempos:{}, produtividade:{}};
+
+      function tryReadClean(table){ const header=(table[0]||[]).map(x=>(x||'').toString().trim()); if(!header.includes('Secção')||!header.includes('Métrica')) return null; const mIdx={}; months.forEach(m=>{ const i=header.indexOf(m); if(i>-1) mIdx[m]=i; }); if(Object.keys(mIdx).length===0) return null; const out={months, vendas:{}, controlos:{}, delivery:{}, tempos:{}, produtividade:{}}; for(let r=1;r<table.length;r++){ const row=table[r]||[]; const sec=row[header.indexOf('Secção')]; const met=row[header.indexOf('Métrica')]; if(!sec||!met) continue; if(!out.vendas[sec]) out.vendas[sec]={}; out.vendas[sec][met]=months.map(m=>{ const i=mIdx[m]; const v=parseFloat(row[i]); return Number.isNaN(v)? null : v; }); } return out; }
+
+      let usedClean=false; for(const s in tables){ const maybe=tryReadClean(tables[s]); if(maybe){ raw=maybe; usedClean=true; break; } }
+      if(!usedClean){ sections.forEach(sec=>{ newRaw.vendas[sec]={}; for(const s in tables){ const t=tables[s]; const sr=findSection(t,sec); if(sr!==-1){ const mh=findMonthHeader(t,sr); if(!mh) continue; metrics.forEach(mt=>{ let rr=null; for(let r=mh.row+1;r<t.length;r++){ if((t[r]||[])[0]===mt){ rr=r; break; } } newRaw.vendas[sec][mt]= rr!=null? extractMetric(t,rr,mh.map) : months.map(()=>null); }); } }}); for(const s in tables){ const t=tables[s]; const sr=findSection(t,'Controlos Operacionais'); if(sr!==-1){ const mh=findMonthHeader(t,sr); if(!mh) continue; let current=null; for(let r=mh.row+1;r<t.length;r++){ const cell=((t[r]||[])[0]||'').toString().trim(); if(ctrlInd.includes(cell)){ current=cell; newRaw.controlos[current]={}; } else if(["%","Mercado","Diferença"].includes(cell) && current){ const label=(cell==='%')?'Real':cell; newRaw.controlos[current][label]=extractMetric(t,r,mh.map); } } } } for(const s in tables){ const t=tables[s]; const sr=findSection(t,'Métricas Operacionais'); if(sr!==-1){ const mh=findMonthHeader(t,sr); if(!mh) continue; for(let r=mh.row+1;r<t.length;r++){ const cell=(t[r]||[])[0]; if(deliv.includes(cell)){ newRaw.delivery[cell]=extractMetric(t,r,mh.map); } } } } for(const s in tables){ const t=tables[s]; const mh=findMonthHeader(t,0); if(!mh) continue; for(let r=mh.row+1;r<t.length;r++){ const cell=(t[r]||[])[0]; if(tempos.includes(cell)){ newRaw.tempos[cell]=extractMetric(t,r,mh.map); } } } for(const s in tables){ const t=tables[s]; const sr=findSection(t,'PRODUTIVIDADE'); const mh=(sr!==-1? findMonthHeader(t,sr): findMonthHeader(t,0)); if(!mh) continue; for(let r=mh.row+1;r<t.length;r++){ const cell=(t[r]||[])[0]; if(prod.includes(cell)){ newRaw.produtividade[cell]=extractMetric(t,r,mh.map); } } } raw=newRaw; }
+
+      initControlos(); refreshVendas(); refreshControlos(); refreshDelivery(); refreshTempos(); refreshProd();
+    }
+
+    // Primeira renderização
+    initControlos(); refreshVendas(); refreshControlos(); refreshDelivery(); refreshTempos(); refreshProd();
+  </script>
+</body>
+</html>
